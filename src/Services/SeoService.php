@@ -2,21 +2,19 @@
 
 namespace Syndicate\Promoter\Services;
 
-use Closure;
+use Astrotomic\OpenGraph\TwitterType;
+use Astrotomic\OpenGraph\Type;
 use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Database\Eloquent\Model;
-use ReflectionClass;
-use ReflectionMethod;
+use Spatie\SchemaOrg\Graph;
+use Syndicate\Promoter\Contracts\SeoConfig;
+use Syndicate\Promoter\Enums\RobotsDirective;
+use Syndicate\Promoter\Support\Hreflang;
 
 class SeoService implements Htmlable
 {
-    use Traits\HandlesClosureEvaluation;
-    use Traits\ManagesCoreTags;
-    use Traits\ManagesHreflang;
-    use Traits\ManagesOpenGraph;
-    use Traits\ManagesSchema;
-    use Traits\ManagesTwitter;
+    protected SeoConfig $seoConfig;
 
     public function __construct(protected Model $record)
     {
@@ -34,22 +32,55 @@ class SeoService implements Htmlable
 
     public function render(): View
     {
-        return view(
-            view: 'syndicate::promoter.head.seo',
-            data: $this->extractPublicMethods()
-        );
+        return view('promoter::seo', [
+            'title' => $this->getTitle(),
+            'description' => $this->getDescription(),
+            'canonicalUrl' => $this->getCanonicalUrl(),
+            'robots' => $this->getRobots(),
+            'twitter' => $this->getTwitter(),
+            'openGraph' => $this->getOpenGraph(),
+            'schema' => $this->getSchema(),
+            'hreflang' => $this->getHreflang(),
+        ]);
     }
 
-    public function extractPublicMethods(): array
+    public function getTitle(): ?string
     {
-        $reflection = new ReflectionClass($this);
+        return $this->seoConfig->title($this->record, $this);
+    }
 
-        $methods = [];
+    public function getDescription(): ?string
+    {
+        return $this->seoConfig->description($this->record, $this);
+    }
 
-        foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
-            $methods[$method->getName()] = Closure::fromCallable([$this, $method->getName()]);
-        }
+    public function getCanonicalUrl(): ?string
+    {
+        return $this->seoConfig->canonicalUrl($this->record, $this);
+    }
 
-        return $methods;
+    public function getRobots(): ?RobotsDirective
+    {
+        return $this->seoConfig->robots($this->record, $this);
+    }
+
+    public function getTwitter(): ?TwitterType
+    {
+        return $this->seoConfig->twitter($this->record, $this);
+    }
+
+    public function getOpenGraph(): ?Type
+    {
+        return $this->seoConfig->openGraph($this->record, $this);
+    }
+
+    public function getSchema(): Graph|null
+    {
+        return $this->seoConfig->schema($this->record, $this);
+    }
+
+    public function getHreflang(): ?Hreflang
+    {
+        return $this->seoConfig->hreflang($this->record, $this);
     }
 }

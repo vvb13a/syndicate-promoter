@@ -1,6 +1,6 @@
 <?php
 
-namespace Syndicate\Promoter\Services\Types;
+namespace Syndicate\Promoter\Support;
 
 use Illuminate\Support\HtmlString;
 
@@ -36,7 +36,7 @@ class Hreflang
 
         $tags = [];
         foreach ($this->links as $link) {
-            $tags[] = '<link rel="alternate" hreflang="'.e($link['hreflang']).'" href="'.e($link['href']).'">';
+            $tags[] = '<link rel="alternate" hreflang="' . e($link['hreflang']) . '" href="' . e($link['href']) . '">';
         }
 
         return new HtmlString(implode("\n", $tags));

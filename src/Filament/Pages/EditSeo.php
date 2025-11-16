@@ -3,27 +3,19 @@
 namespace Syndicate\Promoter\Filament\Pages;
 
 use Filament\Actions\Action;
-use Filament\Forms\Components\Component;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Tabs;
-use Filament\Forms\Components\Tabs\Tab;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Form;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\IconPosition;
-use Illuminate\Database\Eloquent\Model;
-use Syndicate\Promoter\Contracts\HasSeo;
-use Syndicate\Promoter\Filament\Relations\IndexingRelationManager;
+use Syndicate\Promoter\Enums\RobotsDirective;
 
 class EditSeo extends EditRecord
 {
-    use Fields\HasTitle;
     use Fields\HasSlug;
-    use Fields\HasDescription;
-    use Fields\HasKeywords;
-    use Fields\HasRobots;
-    use Fields\HasCanonicalUrl;
-    use Fields\HasImageAlt;
 
     protected static bool $isLazy = false;
     protected static ?string $navigationIcon = 'heroicon-o-signal';
@@ -33,94 +25,74 @@ class EditSeo extends EditRecord
 
     public function form(Form $form): Form
     {
-        return $form->schema($this->getSeoFormSchema());
-    }
-
-    /**
-     * Returns the complete schema array for the form.
-     * Determines the overall layout (e.g., main grid vs. sidebar).
-     */
-    protected function getSeoFormSchema(): array
-    {
-        $schema = [];
-
-        // 1. Add the Slug Section (Bound to the main model)
-        $schema[] = $this->getSlugSection();
-
-        // 2. Add SEO Sections Grid (Bound to 'seoData' relationship)
-        $schema[] = Grid::make()
-            ->relationship('seoData')
-            ->schema($this->getSeoSectionsSchema())
-            ->columns(1);
-
-        return $schema;
-    }
-
-    /**
-     * Returns the schema array for the SEO sections grid.
-     * This is where individual SEO sections/fields are assembled.
-     */
-    protected function getSeoSectionsSchema(): array
-    {
-        return [
-            Tabs::make('Required Information')
-                ->contained(false)
-                ->tabs([
-                    Tabs\Tab::make('Required Information')
+        return $form->schema([
+            Grid::make()
+                ->relationship('seoData')
+                ->schema([
+                    Section::make('Keyword & Insights')
+                        ->aside()
+                        ->columns(2)
+                        ->description('Set a target keyword used for optimization. The AI also derives a generated keyword from content and provides a relevance score.')
                         ->schema([
-                            $this->getSeoKeywordInsightsSection(),
-                            $this->getSeoTitleSection(),
-                            $this->getSeoDescriptionSection(),
-                            $this->getSeoImageAltSection(),
+                            TextInput::make('keyword')
+                                ->label('Target Keyword')
+                                ->helperText('User-provided keyword that determines the optimization of title, description, image alt, and slug when set.')
+                                ->maxLength(255),
+                            TextInput::make('generated_keyword')
+                                ->label('Generated Keyword')
+                                ->helperText('AI-generated from content; always present but only used for optimization when no target keyword is provided.')
+                                ->disabled()
+                                ->dehydrated(false),
                         ]),
-                    Tabs\Tab::make('Advanced Configuration')
+                    Section::make('Title')
+                        ->aside()
+                        ->description('Essential for search engine visibility. Appears as the main clickable link in search results.')
                         ->schema([
-                            $this->getSeoCanonicalUrlSection(),
-                            $this->getSeoRobotsSection(),
-                            // Optional legacy meta-keywords field
-                            //  $this->getSeoKeywordsSection(),
+                            TextInput::make('title')
+                                ->helperText('Keep it concise and relevant. Aim for 20-60 characters.')
+                                ->minLength(20)
+                                ->maxLength(60)
+                                ->placeholder($this->getRecord()->seo->getTitle())
+                        ]),
+                    Section::make('Description')
+                        ->aside()
+                        ->description('Appears below the title in search results. A compelling description can improve click-through rate.')
+                        ->schema([
+                            Textarea::make('description')
+                                ->helperText('Summarizes the page content. Aim for 50-160 characters.')
+                                ->minLength(50)
+                                ->maxLength(160)
+                                ->autosize()
+                                ->placeholder($this->getRecord()->seo->getDescription())
+                        ]),
+                    Section::make('Search Engine Indexing')
+                        ->aside()
+                        ->description('Control how search engine crawlers index this page and follow links from it. Choose the appropriate directive based on your content strategy.')
+                        ->schema([
+                            Select::make('robots')
+                                ->label('Robots Directive')
+                                ->options(RobotsDirective::class)
+                                ->placeholder($this->getRecord()->seo->getRobots())
+                                ->helperText('Select the appropriate rule for search engine bots.')
+                        ]),
+                    Section::make('Canonical URL')
+                        ->aside()
+                        ->description('Specify the preferred ("canonical") URL for this content, especially if it exists on multiple URLs or has variations (e.g., with/without www, HTTP/HTTPS), to prevent duplicate content issues.')
+                        ->schema([
+                            TextInput::make('canonical_url')
+                                ->label('Canonical URL')
+                                ->helperText('Leave empty to use the page\'s default URL. Ensures search engines know the primary source.')
+                                ->url()
+                                ->placeholder($this->getRecord()->seo->getCanonicalUrl())
                         ])
-                ]),
-        ];
-    }
-
-    /**
-     * Keyword & Insights section reflecting the latest SEO model changes.
-     * - Keyword: user-provided target keyword to optimize metadata
-     * - generated_keyword: AI-derived from title/content (read-only)
-     * - keyword_score: how well content aligns with the basis keyword (read-only)
-     */
-    protected function getSeoKeywordInsightsSection(): ?Component
-    {
-        return Section::make('Keyword & Insights')
-            ->aside()
-            ->columns(2)
-            ->description('Set a target keyword used for optimization. The AI also derives a generated keyword from content and provides a relevance score.')
-            ->schema([
-                TextInput::make('keyword')
-                    ->label('Target Keyword')
-                    ->helperText('User-provided keyword that determines the optimization of title, description, image alt, and slug when set.')
-                    ->maxLength(255),
-                TextInput::make('generated_keyword')
-                    ->label('Generated Keyword')
-                    ->helperText('AI-generated from content; always present but only used for optimization when no target keyword is provided.')
-                    ->disabled()
-                    ->dehydrated(false),
-            ]);
+                ])
+                ->columns(1)
+        ]);
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('keyword_score')
-                ->visible(function (Model&HasSeo $record): bool {
-                    return $record->seoData?->keyword_score !== null;
-                })
-                ->disabled()
-                ->outlined()
-                ->label(function (Model&HasSeo $record): string {
-                    return 'Keyword Score: '.$record->seoData->keyword_score;
-                }),
             Action::make('submit')
                 ->action(function ($livewire): void {
                     $livewire->save();
